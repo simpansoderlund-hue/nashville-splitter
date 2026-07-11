@@ -512,3 +512,16 @@ button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
   background: linear-gradient(160deg, rgba(224, 166, 59, 0.3), rgba(224, 166, 59, 0.08));
   border-color: var(--accent);
 }
+
+.game-cell.active.decoy {
+  background: linear-gradient(160deg, rgba(224, 117, 92, 0.35), rgba(224, 117, 92, 0.08));
+  border-color: var(--bad);
+}
+
+#game-leaderboard {
+  margin-bottom: 12px;
+}
+
+#game-leaderboard .balance-row {
+  padding: 8px 12px;
+}

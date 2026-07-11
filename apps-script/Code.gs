@@ -13,6 +13,7 @@ const SHEETS = {
   people: { name: 'People', headers: ['id', 'name', 'addedAt'] },
   expenses: { name: 'Expenses', headers: ['id', 'description', 'amount', 'paidBy', 'date', 'participantIds', 'createdAt', 'isSettlement'] },
   log: { name: 'Log', headers: ['timestamp', 'message'] },
+  gameScores: { name: 'GameScores', headers: ['name', 'score', 'playedAt'] },
 };
 
 function getSheet(key) {
@@ -69,6 +70,15 @@ function readLog() {
     .slice(0, 200);
 }
 
+function readGameScores() {
+  const rows = getSheet('gameScores').getDataRange().getValues();
+  return rows.slice(1)
+    .filter(r => r[0])
+    .map(r => ({ name: r[0], score: Number(r[1]), playedAt: normDate(r[2]) }))
+    .reverse()
+    .slice(0, 50);
+}
+
 function log(message) {
   getSheet('log').appendRow([new Date().toISOString(), message]);
 }
@@ -80,6 +90,7 @@ function doGet(e) {
     people: readPeople(),
     expenses: readExpenses(),
     log: readLog(),
+    gameScores: readGameScores(),
   });
 }
 
@@ -101,6 +112,7 @@ function doPost(e) {
       case 'addPerson': return addPerson(data);
       case 'addExpense': return addExpense(data);
       case 'settle': return settle(data);
+      case 'addGameScore': return addGameScore(data);
       default: return jsonResponse({ error: 'Unknown action' });
     }
   } finally {
@@ -180,4 +192,16 @@ function settle(data) {
   getSheet('expenses').appendRow([id, description, roundedAmount, fromId, date, JSON.stringify([toId]), createdAt, true]);
   log(`SETTLEMENT "${from.name}" paid "${to.name}" $${roundedAmount.toFixed(2)}`);
   return jsonResponse({ id, description, amount: roundedAmount, paidBy: fromId, date, participantIds: [toId], createdAt, isSettlement: true });
+}
+
+function addGameScore(data) {
+  const name = (data.name || '').trim();
+  const score = Number(data.score);
+  if (!name) return jsonResponse({ error: 'Name is required' });
+  if (!Number.isFinite(score)) return jsonResponse({ error: 'Score must be a number' });
+
+  const playedAt = new Date().toISOString();
+  getSheet('gameScores').appendRow([name, score, playedAt]);
+  log(`GAME_SCORE "${name}" scored ${score} in the guitar mini-game`);
+  return jsonResponse({ name, score, playedAt });
 }

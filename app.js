@@ -11,6 +11,7 @@ const state = {
   people: [],
   expenses: [],
   log: [],
+  gameScores: [],
 };
 
 let currentUserName = null;
@@ -31,6 +32,7 @@ async function refreshData() {
   state.people = data.people || [];
   state.expenses = data.expenses.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   state.log = data.log || [];
+  state.gameScores = data.gameScores || [];
   return data;
 }
 
@@ -526,14 +528,19 @@ function showSuccess(message, autoCloseMs = 2000) {
 }
 
 // ---------- Guitar easter egg mini-game ----------
-// Whack-a-Taylor: click her before she moves to the next cell. Pure fun,
-// no connection to the expense data beyond the running joke in the result.
+// Whack-a-Taylor: click her before she moves to the next cell. Sometimes a
+// 🤖 Ticketmaster bot shows up instead — click that one by mistake and it's
+// -2 points. Scores are saved to the sheet (per identified person) so
+// everyone can see who got what.
 
 const GAME_DURATION_SECONDS = 15;
 const GAME_CELL_COUNT = 9;
 const GAME_SPAWN_MS = 800;
+const GAME_DECOY_EMOJI = '🤖';
+const GAME_DECOY_CHANCE = 0.25;
+const GAME_DECOY_PENALTY = 2;
 
-let gameState = null; // { score, timeLeft, activeCell, spawnTimer, tickTimer }
+let gameState = null; // { score, timeLeft, activeCell, activeIsDecoy, spawnTimer, tickTimer }
 
 const GAME_RESULT_LINES = [
   "still not enough to cover the Eras Tour merch debt.",
@@ -559,7 +566,7 @@ function onGameGridClick(e) {
   if (!cell || !gameState) return;
   if (Number(cell.dataset.index) !== gameState.activeCell) return;
 
-  gameState.score++;
+  gameState.score += gameState.activeIsDecoy ? -GAME_DECOY_PENALTY : 1;
   document.getElementById('game-score').textContent = String(gameState.score);
   spawnMole();
 }
@@ -567,14 +574,17 @@ function onGameGridClick(e) {
 function spawnMole() {
   if (!gameState) return;
   document.querySelectorAll('.game-cell').forEach(c => {
-    c.classList.remove('active');
+    c.classList.remove('active', 'decoy');
     c.textContent = '';
   });
   const idx = Math.floor(Math.random() * GAME_CELL_COUNT);
+  const isDecoy = Math.random() < GAME_DECOY_CHANCE;
   gameState.activeCell = idx;
+  gameState.activeIsDecoy = isDecoy;
   const cell = document.querySelector(`.game-cell[data-index="${idx}"]`);
   cell.classList.add('active');
-  cell.textContent = '🎤';
+  if (isDecoy) cell.classList.add('decoy');
+  cell.textContent = isDecoy ? GAME_DECOY_EMOJI : '🎤';
 }
 
 function startGuitarGame() {
@@ -582,10 +592,11 @@ function startGuitarGame() {
   document.getElementById('game-intro').classList.add('hidden');
   document.getElementById('game-result').classList.add('hidden');
   document.getElementById('game-start-btn').classList.add('hidden');
+  document.getElementById('game-leaderboard').classList.add('hidden');
   document.getElementById('game-hud').classList.remove('hidden');
   document.getElementById('game-grid').classList.remove('hidden');
 
-  gameState = { score: 0, timeLeft: GAME_DURATION_SECONDS, activeCell: null };
+  gameState = { score: 0, timeLeft: GAME_DURATION_SECONDS, activeCell: null, activeIsDecoy: false };
   document.getElementById('game-score').textContent = '0';
   document.getElementById('game-time').textContent = String(GAME_DURATION_SECONDS);
 
@@ -598,7 +609,7 @@ function startGuitarGame() {
   }, 1000);
 }
 
-function endGuitarGame() {
+async function endGuitarGame() {
   if (!gameState) return;
   clearInterval(gameState.spawnTimer);
   clearInterval(gameState.tickTimer);
@@ -608,7 +619,8 @@ function endGuitarGame() {
   document.getElementById('game-grid').classList.add('hidden');
   document.getElementById('game-hud').classList.add('hidden');
 
-  const line = GAME_RESULT_LINES[score % GAME_RESULT_LINES.length];
+  // Modulo can go negative in JS when score is negative — normalize the index.
+  const line = GAME_RESULT_LINES[((score % GAME_RESULT_LINES.length) + GAME_RESULT_LINES.length) % GAME_RESULT_LINES.length];
   const resultEl = document.getElementById('game-result');
   resultEl.textContent = `🎤 Final score: ${score}! That's ${line}`;
   resultEl.classList.remove('hidden');
@@ -616,6 +628,34 @@ function endGuitarGame() {
   const startBtn = document.getElementById('game-start-btn');
   startBtn.textContent = 'Play again';
   startBtn.classList.remove('hidden');
+
+  if (currentUserName) {
+    try {
+      await callAction('addGameScore', { name: currentUserName, score });
+      await refreshData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  renderGameLeaderboard();
+  document.getElementById('game-leaderboard').classList.remove('hidden');
+}
+
+function renderGameLeaderboard() {
+  const container = document.getElementById('game-leaderboard');
+  if (!state.gameScores.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `
+    <p class="hint" style="margin-bottom: 6px">Recent scores</p>
+    ${state.gameScores.slice(0, 10).map(s => `
+      <div class="balance-row">
+        <span>${avatarHtml(s.name)}${escapeHtml(s.name)}</span>
+        <span>${s.score} pts</span>
+      </div>
+    `).join('')}
+  `;
 }
 
 function resetGuitarGameView() {
@@ -628,6 +668,7 @@ function resetGuitarGameView() {
   document.getElementById('game-result').classList.add('hidden');
   document.getElementById('game-hud').classList.add('hidden');
   document.getElementById('game-grid').classList.add('hidden');
+  document.getElementById('game-leaderboard').classList.remove('hidden');
   const startBtn = document.getElementById('game-start-btn');
   startBtn.textContent = 'Start';
   startBtn.classList.remove('hidden');
@@ -638,8 +679,14 @@ function closeGuitarGame() {
   document.getElementById('guitar-game-overlay').classList.add('hidden');
 }
 
-document.getElementById('guitar-badge').addEventListener('click', () => {
+document.getElementById('guitar-badge').addEventListener('click', async () => {
   document.getElementById('guitar-game-overlay').classList.remove('hidden');
+  try {
+    await refreshData();
+  } catch (e) {
+    console.error(e);
+  }
+  renderGameLeaderboard();
 });
 document.getElementById('game-grid').addEventListener('click', onGameGridClick);
 document.getElementById('game-start-btn').addEventListener('click', startGuitarGame);
