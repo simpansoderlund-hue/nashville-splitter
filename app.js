@@ -13,6 +13,8 @@ const state = {
   log: [],
 };
 
+let currentUserName = null;
+
 if (API_URL.includes('PASTE_YOUR')) {
   document.getElementById('setup-warning').classList.remove('hidden');
 }
@@ -54,6 +56,113 @@ async function callAction(action, data) {
     throw err;
   }
 }
+
+// ---------- Who are you? (name gate) ----------
+// Every visitor picks their name from the People sheet before using the app.
+// Matching is case-insensitive, and it's remembered per-browser afterward so
+// it only asks once. If the typed name isn't on the sheet yet, it offers to
+// add them as a new person (so this doesn't create a chicken-and-egg problem
+// for the very first person to open the app).
+
+const NAME_STORAGE_KEY = 'tripSplitterName';
+
+function getSavedName() {
+  return localStorage.getItem(NAME_STORAGE_KEY);
+}
+
+function saveName(name) {
+  localStorage.setItem(NAME_STORAGE_KEY, name);
+}
+
+function clearSavedName() {
+  localStorage.removeItem(NAME_STORAGE_KEY);
+}
+
+function updateWhoamiBadge() {
+  const badge = document.getElementById('whoami-badge');
+  const label = document.getElementById('whoami-label');
+  if (currentUserName) {
+    label.textContent = `${avatarFor(currentUserName)} ${currentUserName}`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+async function ensureIdentified() {
+  try {
+    await refreshData();
+  } catch (e) {
+    console.error(e);
+  }
+
+  const saved = getSavedName();
+  const savedMatch = saved && state.people.find(p => p.name.toLowerCase() === saved.toLowerCase());
+  if (savedMatch) return savedMatch.name;
+
+  const overlay = document.getElementById('name-gate');
+  const form = document.getElementById('name-gate-form');
+  const input = document.getElementById('name-gate-input');
+  const errorEl = document.getElementById('name-gate-error');
+  const addBtn = document.getElementById('name-gate-add');
+
+  overlay.classList.remove('hidden');
+  addBtn.classList.add('hidden');
+  errorEl.textContent = '';
+  input.focus();
+
+  return new Promise(resolve => {
+    function finish(name) {
+      saveName(name);
+      overlay.classList.add('hidden');
+      form.removeEventListener('submit', onSubmit);
+      addBtn.removeEventListener('click', onAdd);
+      resolve(name);
+    }
+
+    function onSubmit(e) {
+      e.preventDefault();
+      const entered = input.value.trim();
+      if (!entered) return;
+      const match = state.people.find(p => p.name.toLowerCase() === entered.toLowerCase());
+      if (match) {
+        finish(match.name);
+        return;
+      }
+      errorEl.textContent = `No one named "${entered}" yet.`;
+      addBtn.textContent = `Add me as "${entered}"`;
+      addBtn.classList.remove('hidden');
+    }
+
+    async function onAdd() {
+      const entered = input.value.trim();
+      if (!entered) return;
+      errorEl.textContent = '';
+      addBtn.disabled = true;
+      try {
+        const created = await callAction('addPerson', { name: entered });
+        await refreshData();
+        finish(created.name);
+      } catch (err) {
+        errorEl.textContent = err.message;
+      } finally {
+        addBtn.disabled = false;
+      }
+    }
+
+    form.addEventListener('submit', onSubmit);
+    addBtn.addEventListener('click', onAdd);
+  });
+}
+
+document.getElementById('whoami-badge').addEventListener('click', async () => {
+  clearSavedName();
+  currentUserName = null;
+  updateWhoamiBadge();
+  currentUserName = await ensureIdentified();
+  updateWhoamiBadge();
+  renderPaidBySelect();
+});
 
 // ---------- Tabs ----------
 
@@ -138,7 +247,12 @@ function renderPaidBySelect() {
   const select = document.getElementById('exp-paid-by');
   const prev = select.value;
   select.innerHTML = state.people.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  if (state.people.some(p => p.id === prev)) select.value = prev;
+  if (state.people.some(p => p.id === prev)) {
+    select.value = prev;
+  } else if (currentUserName) {
+    const me = state.people.find(p => p.name.toLowerCase() === currentUserName.toLowerCase());
+    if (me) select.value = me.id;
+  }
 }
 
 function renderParticipantCheckboxes() {
@@ -439,5 +553,13 @@ document.getElementById('log-overlay').addEventListener('click', (e) => {
 
 // ---------- Init ----------
 
-setDefaultDate();
-loadForTab('add');
+async function init() {
+  setDefaultDate();
+  if (!API_URL.includes('PASTE_YOUR')) {
+    currentUserName = await ensureIdentified();
+    updateWhoamiBadge();
+  }
+  await loadForTab('add');
+}
+
+init();

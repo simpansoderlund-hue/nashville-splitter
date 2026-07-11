@@ -57,6 +57,15 @@ body {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 
+.hidden { display: none; }
+
+.header-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .log-badge {
   display: flex;
   align-items: center;
@@ -389,6 +398,16 @@ button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* A <form> nested in a modal card shouldn't get the site-wide boxed form
+   look — the modal card already provides that box. */
+.modal-card form {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  gap: 10px;
 }
 
 .btn-secondary, .btn-danger, .btn-confirm {

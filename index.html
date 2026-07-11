@@ -58,9 +58,14 @@
       </svg>
       <div class="header-content">
         <h1>💸 Trip Splitter</h1>
-        <button type="button" id="log-badge" class="log-badge" title="View activity log">
-          <span>📋 Activity log</span>
-        </button>
+        <div class="header-badges">
+          <button type="button" id="whoami-badge" class="log-badge hidden" title="Click to switch who you are">
+            <span id="whoami-label"></span>
+          </button>
+          <button type="button" id="log-badge" class="log-badge" title="View activity log">
+            <span>📋 Activity log</span>
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -166,6 +171,21 @@
       <div class="modal-actions">
         <button type="button" id="success-ok" class="btn-confirm">OK</button>
       </div>
+    </div>
+  </div>
+
+  <div id="name-gate" class="modal-overlay hidden">
+    <div class="modal-card">
+      <p style="font-weight: 600; margin-bottom: 4px">Who are you?</p>
+      <p class="hint" style="margin-top: 0">Enter your name to continue — upper/lowercase doesn't matter.</p>
+      <form id="name-gate-form">
+        <input type="text" id="name-gate-input" placeholder="Your name" autocomplete="name" required />
+        <p id="name-gate-error" class="error"></p>
+        <div class="modal-actions">
+          <button type="button" id="name-gate-add" class="btn-secondary hidden"></button>
+          <button type="submit" class="primary">Continue</button>
+        </div>
+      </form>
     </div>
   </div>
 
