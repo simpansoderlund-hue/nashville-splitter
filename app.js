@@ -564,10 +564,14 @@ function buildGameGrid() {
 function onGameGridClick(e) {
   const cell = e.target.closest('.game-cell');
   if (!cell || !gameState) return;
-  if (Number(cell.dataset.index) !== gameState.activeCell) return;
 
-  gameState.score += gameState.activeIsDecoy ? -GAME_DECOY_PENALTY : 1;
-  document.getElementById('game-score').textContent = String(gameState.score);
+  // A hit scores (or penalizes, for the decoy); a miss scores nothing — but
+  // either way the target immediately relocates, so you can't just spam-click
+  // the whole grid.
+  if (Number(cell.dataset.index) === gameState.activeCell) {
+    gameState.score += gameState.activeIsDecoy ? -GAME_DECOY_PENALTY : 1;
+    document.getElementById('game-score').textContent = String(gameState.score);
+  }
   spawnMole();
 }
 
@@ -647,9 +651,10 @@ function renderGameLeaderboard() {
     container.innerHTML = '';
     return;
   }
+  const top5 = state.gameScores.slice().sort((a, b) => b.score - a.score).slice(0, 5);
   container.innerHTML = `
-    <p class="hint" style="margin-bottom: 6px">Recent scores</p>
-    ${state.gameScores.slice(0, 10).map(s => `
+    <p class="hint" style="margin-bottom: 6px">🏆 Top 5 scores</p>
+    ${top5.map(s => `
       <div class="balance-row">
         <span>${avatarHtml(s.name)}${escapeHtml(s.name)}</span>
         <span>${s.score} pts</span>
