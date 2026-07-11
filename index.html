@@ -65,6 +65,9 @@
           <button type="button" id="log-badge" class="log-badge" title="View activity log">
             <span>📋 Activity log</span>
           </button>
+          <button type="button" id="guitar-badge" class="log-badge" title="???">
+            <span>🎸</span>
+          </button>
         </div>
       </div>
     </div>
@@ -186,6 +189,26 @@
           <button type="submit" class="primary">Continue</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="guitar-game-overlay" class="modal-overlay hidden">
+    <div class="modal-card game-card">
+      <div class="log-card-header">
+        <h2>🎸 Eras Tour Arcade</h2>
+        <button type="button" id="game-close" class="btn-secondary">Close</button>
+      </div>
+      <p class="hint" id="game-intro">
+        Click Taylor as many times as you can in 15 seconds — she's fast, and the
+        Eras Tour merch debt isn't going to pay itself.
+      </p>
+      <div class="game-hud hidden" id="game-hud">
+        <span>Score: <strong id="game-score">0</strong></span>
+        <span>Time: <strong id="game-time">15</strong>s</span>
+      </div>
+      <div class="game-grid hidden" id="game-grid"></div>
+      <p class="hint hidden" id="game-result"></p>
+      <button type="button" id="game-start-btn" class="primary">Start</button>
     </div>
   </div>
 

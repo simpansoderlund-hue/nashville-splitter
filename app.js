@@ -525,6 +525,129 @@ function showSuccess(message, autoCloseMs = 2000) {
   const timer = setTimeout(close, autoCloseMs);
 }
 
+// ---------- Guitar easter egg mini-game ----------
+// Whack-a-Taylor: click her before she moves to the next cell. Pure fun,
+// no connection to the expense data beyond the running joke in the result.
+
+const GAME_DURATION_SECONDS = 15;
+const GAME_CELL_COUNT = 9;
+const GAME_SPAWN_MS = 800;
+
+let gameState = null; // { score, timeLeft, activeCell, spawnTimer, tickTimer }
+
+const GAME_RESULT_LINES = [
+  "still not enough to cover the Eras Tour merch debt.",
+  "Taylor Swift is impressed, but unpaid.",
+  "somebody on the Balances tab still owes for merch.",
+  "add it to the tab — right next to the friendship bracelets.",
+];
+
+function buildGameGrid() {
+  const grid = document.getElementById('game-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < GAME_CELL_COUNT; i++) {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'game-cell';
+    cell.dataset.index = String(i);
+    grid.appendChild(cell);
+  }
+}
+
+function onGameGridClick(e) {
+  const cell = e.target.closest('.game-cell');
+  if (!cell || !gameState) return;
+  if (Number(cell.dataset.index) !== gameState.activeCell) return;
+
+  gameState.score++;
+  document.getElementById('game-score').textContent = String(gameState.score);
+  spawnMole();
+}
+
+function spawnMole() {
+  if (!gameState) return;
+  document.querySelectorAll('.game-cell').forEach(c => {
+    c.classList.remove('active');
+    c.textContent = '';
+  });
+  const idx = Math.floor(Math.random() * GAME_CELL_COUNT);
+  gameState.activeCell = idx;
+  const cell = document.querySelector(`.game-cell[data-index="${idx}"]`);
+  cell.classList.add('active');
+  cell.textContent = '🎤';
+}
+
+function startGuitarGame() {
+  buildGameGrid();
+  document.getElementById('game-intro').classList.add('hidden');
+  document.getElementById('game-result').classList.add('hidden');
+  document.getElementById('game-start-btn').classList.add('hidden');
+  document.getElementById('game-hud').classList.remove('hidden');
+  document.getElementById('game-grid').classList.remove('hidden');
+
+  gameState = { score: 0, timeLeft: GAME_DURATION_SECONDS, activeCell: null };
+  document.getElementById('game-score').textContent = '0';
+  document.getElementById('game-time').textContent = String(GAME_DURATION_SECONDS);
+
+  spawnMole();
+  gameState.spawnTimer = setInterval(spawnMole, GAME_SPAWN_MS);
+  gameState.tickTimer = setInterval(() => {
+    gameState.timeLeft--;
+    document.getElementById('game-time').textContent = String(gameState.timeLeft);
+    if (gameState.timeLeft <= 0) endGuitarGame();
+  }, 1000);
+}
+
+function endGuitarGame() {
+  if (!gameState) return;
+  clearInterval(gameState.spawnTimer);
+  clearInterval(gameState.tickTimer);
+  const score = gameState.score;
+  gameState = null;
+
+  document.getElementById('game-grid').classList.add('hidden');
+  document.getElementById('game-hud').classList.add('hidden');
+
+  const line = GAME_RESULT_LINES[score % GAME_RESULT_LINES.length];
+  const resultEl = document.getElementById('game-result');
+  resultEl.textContent = `🎤 Final score: ${score}! That's ${line}`;
+  resultEl.classList.remove('hidden');
+
+  const startBtn = document.getElementById('game-start-btn');
+  startBtn.textContent = 'Play again';
+  startBtn.classList.remove('hidden');
+}
+
+function resetGuitarGameView() {
+  if (gameState) {
+    clearInterval(gameState.spawnTimer);
+    clearInterval(gameState.tickTimer);
+    gameState = null;
+  }
+  document.getElementById('game-intro').classList.remove('hidden');
+  document.getElementById('game-result').classList.add('hidden');
+  document.getElementById('game-hud').classList.add('hidden');
+  document.getElementById('game-grid').classList.add('hidden');
+  const startBtn = document.getElementById('game-start-btn');
+  startBtn.textContent = 'Start';
+  startBtn.classList.remove('hidden');
+}
+
+function closeGuitarGame() {
+  resetGuitarGameView();
+  document.getElementById('guitar-game-overlay').classList.add('hidden');
+}
+
+document.getElementById('guitar-badge').addEventListener('click', () => {
+  document.getElementById('guitar-game-overlay').classList.remove('hidden');
+});
+document.getElementById('game-grid').addEventListener('click', onGameGridClick);
+document.getElementById('game-start-btn').addEventListener('click', startGuitarGame);
+document.getElementById('game-close').addEventListener('click', closeGuitarGame);
+document.getElementById('guitar-game-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeGuitarGame();
+});
+
 // ---------- Activity log ----------
 
 document.getElementById('log-badge').addEventListener('click', openActivityLog);
