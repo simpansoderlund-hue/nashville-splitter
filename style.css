@@ -247,6 +247,14 @@ button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
   margin: 0;
 }
 
+.avatar {
+  display: inline-block;
+  font-size: 1.1rem;
+  line-height: 1;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);

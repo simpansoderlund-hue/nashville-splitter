@@ -98,6 +98,22 @@ function nameOf(id) {
   return p ? p.name : 'Unknown';
 }
 
+// ---------- Avatars ----------
+// A little emoji next to each person's name — picked deterministically from
+// the name itself, so the same person always gets the same emoji.
+
+const AVATAR_EMOJIS = ['🦊', '🐻', '🐼', '🐨', '🐸', '🦁', '🐯', '🐵', '🐶', '🐱', '🐰', '🦄', '🐷', '🐮', '🐔', '🦉', '🐙', '🦋', '🐝', '🐳', '🐢', '🦖', '🐧', '🦔'];
+
+function avatarFor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_EMOJIS[hash % AVATAR_EMOJIS.length];
+}
+
+function avatarHtml(name) {
+  return `<span class="avatar" title="${escapeHtml(name)}">${avatarFor(name)}</span>`;
+}
+
 function setDefaultDate() {
   const dateInput = document.getElementById('exp-date');
   dateInput.value = new Date().toISOString().slice(0, 10);
@@ -113,7 +129,7 @@ function renderPeopleList() {
   }
   container.innerHTML = state.people.map(p => `
     <div class="person-row">
-      <span>${escapeHtml(p.name)}</span>
+      <span>${avatarHtml(p.name)}${escapeHtml(p.name)}</span>
     </div>
   `).join('');
 }
@@ -130,7 +146,7 @@ function renderParticipantCheckboxes() {
   container.innerHTML = state.people.map(p => `
     <label>
       <input type="checkbox" value="${p.id}" checked />
-      ${escapeHtml(p.name)}
+      ${avatarHtml(p.name)}${escapeHtml(p.name)}
     </label>
   `).join('');
 }
@@ -193,6 +209,7 @@ document.getElementById('expense-form').addEventListener('submit', async (e) => 
     setDefaultDate();
     renderParticipantCheckboxes();
     errorEl.textContent = '';
+    showSuccess(`✅ "${description}" (${money(Number(amount))}) added!`);
   } catch (err) {
     errorEl.textContent = err.message;
   }
@@ -305,7 +322,7 @@ function renderBalances(balances) {
     const label = b.amount > 0.005 ? 'is owed' : b.amount < -0.005 ? 'owes' : 'is settled up';
     return `
       <div class="balance-row">
-        <span>${escapeHtml(b.name)}</span>
+        <span>${avatarHtml(b.name)}${escapeHtml(b.name)}</span>
         <span class="balance-amount ${cls}">${label} ${money(Math.abs(b.amount))}</span>
       </div>
     `;
@@ -320,7 +337,7 @@ function renderSettleUp(transactions) {
   }
   container.innerHTML = transactions.map((t, i) => `
     <button type="button" class="settle-row" data-index="${i}">
-      <span><strong>${escapeHtml(t.from)}</strong> pays <strong>${escapeHtml(t.to)}</strong></span>
+      <span><strong>${avatarHtml(t.from)}${escapeHtml(t.from)}</strong> pays <strong>${avatarHtml(t.to)}${escapeHtml(t.to)}</strong></span>
       <span class="settle-amount">${money(t.amount)}</span>
     </button>
   `).join('');
@@ -371,6 +388,27 @@ function confirmDialog(message, { okLabel = 'Confirm', okClass = 'btn-confirm' }
     cancelBtn.addEventListener('click', onCancel);
     overlay.addEventListener('click', onOverlayClick);
   });
+}
+
+// ---------- Success confirmation ----------
+
+function showSuccess(message, autoCloseMs = 2000) {
+  const overlay = document.getElementById('success-overlay');
+  const okBtn = document.getElementById('success-ok');
+  document.getElementById('success-message').textContent = message;
+  overlay.classList.remove('hidden');
+
+  function close() {
+    overlay.classList.add('hidden');
+    okBtn.removeEventListener('click', close);
+    overlay.removeEventListener('click', onOverlayClick);
+    clearTimeout(timer);
+  }
+  function onOverlayClick(e) { if (e.target === overlay) close(); }
+
+  okBtn.addEventListener('click', close);
+  overlay.addEventListener('click', onOverlayClick);
+  const timer = setTimeout(close, autoCloseMs);
 }
 
 // ---------- Activity log ----------
