@@ -860,27 +860,58 @@ document.getElementById('reaction-game-overlay').addEventListener('click', (e) =
   if (e.target === e.currentTarget) closeReactionGame();
 });
 
-// ---------- Mini-game champion prize ----------
-// A fun $2 bounty added to the REAL expense ledger for whoever holds the best
-// score across either mini-game (Guitar or Quick Draw) at the moment this is
-// clicked — there's no "end of trip" date in this app, so it's a manual
-// button rather than something that fires automatically. Ties split the $2
-// evenly among the tied winners, funded by everyone else. This reuses the
-// existing addExpense action (paidBy = winner, participants = everyone but
-// the winner(s)), so no new backend endpoint is needed — same trick settle()
-// uses, just with more than one participant.
+// ---------- Mini-game champion prizes ----------
+// Two independent $2 bounties added to the REAL expense ledger — one for
+// whoever holds the best Guitar-game score, one for whoever holds the best
+// Quick Draw score, at the moment this is clicked. (Winning both means two
+// separate $2 credits, not one combined $2.) There's no "end of trip" date
+// in this app, so it's a manual button rather than something automatic.
+// Ties split that game's $2 evenly among the tied winners, funded by
+// everyone else. Each prize reuses the existing addExpense action (paidBy =
+// winner, participants = everyone but that game's winner(s)) — no new
+// backend endpoint needed, same trick settle() uses with more participants.
+//
+// To undo a prize: it's a normal row in the Expenses sheet (description
+// "🏆 <game> champion prize"), so delete or edit it directly in the sheet
+// like any other expense mistake — same as everything else in this app.
 
 const PRIZE_AMOUNT = 2;
+const PRIZE_GAMES = [
+  { key: 'gameScores', label: 'Guitar game' },
+  { key: 'reactionScores', label: 'Quick Draw' },
+];
 
-function computeArcadeChampions() {
-  const combined = [...state.gameScores, ...state.reactionScores];
-  if (!combined.length) return null;
-  const ranked = topScoresByPerson(combined, Infinity);
+function resolvePrizeAward(scores, gameLabel) {
+  if (!scores.length) return { gameLabel, status: 'no-scores' };
+
+  const ranked = topScoresByPerson(scores, Infinity);
   const topScore = ranked[0].score;
-  return { champions: ranked.filter(s => s.score === topScore), topScore };
+  const champions = ranked.filter(s => s.score === topScore);
+
+  const winners = champions
+    .map(c => state.people.find(p => p.name.toLowerCase() === c.name.toLowerCase()))
+    .filter(Boolean);
+  if (!winners.length) return { gameLabel, status: 'winner-missing' };
+
+  const winnerIds = new Set(winners.map(w => w.id));
+  const payers = state.people.filter(p => !winnerIds.has(p.id));
+  if (payers.length === 0) return { gameLabel, status: 'all-tied' };
+
+  const share = Math.round((PRIZE_AMOUNT / winners.length) * 100) / 100;
+  return { gameLabel, status: 'ok', winners, payers, share };
 }
 
-async function awardArcadePrize() {
+function describePrizeAward(award) {
+  if (award.status === 'no-scores') return `${award.gameLabel}: no scores yet — skipped.`;
+  if (award.status === 'winner-missing') return `${award.gameLabel}: top scorer isn't in the People list anymore — skipped.`;
+  if (award.status === 'all-tied') return `${award.gameLabel}: everyone's tied for first — skipped.`;
+  const names = award.winners.map(w => w.name).join(' & ');
+  return award.winners.length > 1
+    ? `${award.gameLabel}: split $${PRIZE_AMOUNT.toFixed(2)} between ${names} ($${award.share.toFixed(2)} each).`
+    : `${award.gameLabel}: $${award.share.toFixed(2)} to ${names}.`;
+}
+
+async function awardArcadePrizes() {
   try {
     await refreshData();
   } catch (e) {
@@ -888,55 +919,42 @@ async function awardArcadePrize() {
     return;
   }
 
-  const result = computeArcadeChampions();
-  if (!result) {
-    alert('No mini-game scores yet — play a round first.');
+  const awards = PRIZE_GAMES.map(g => resolvePrizeAward(state[g.key], g.label));
+  const usable = awards.filter(a => a.status === 'ok');
+  if (!usable.length) {
+    alert('No mini-game prizes to award right now — play a round first.');
     return;
   }
 
-  const winners = result.champions
-    .map(c => state.people.find(p => p.name.toLowerCase() === c.name.toLowerCase()))
-    .filter(Boolean);
-  if (!winners.length) {
-    alert("Top scorer isn't in the People list anymore — nothing to award.");
-    return;
-  }
-
-  const winnerIds = new Set(winners.map(w => w.id));
-  const payers = state.people.filter(p => !winnerIds.has(p.id));
-  if (payers.length === 0) {
-    alert("Everyone's tied for first — no one left to fund the prize.");
-    return;
-  }
-
-  const share = Math.round((PRIZE_AMOUNT / winners.length) * 100) / 100;
-  const names = winners.map(w => w.name).join(' & ');
-  const message = winners.length > 1
-    ? `Split $${PRIZE_AMOUNT.toFixed(2)} between ${names} ($${share.toFixed(2)} each) for the top mini-game score (tied), funded by everyone else?`
-    : `Give ${names} $${share.toFixed(2)} for the top mini-game score, funded by everyone else?`;
-
-  const ok = await confirmDialog(message, { okLabel: 'Award it', okClass: 'btn-confirm' });
+  const ok = await confirmDialog(awards.map(describePrizeAward).join('\n'), {
+    okLabel: 'Award prizes',
+    okClass: 'btn-confirm',
+  });
   if (!ok) return;
 
   try {
-    for (const winner of winners) {
-      await callAction('addExpense', {
-        description: winners.length > 1 ? '🏆 Mini-game champion prize (tied)' : '🏆 Mini-game champion prize',
-        amount: share,
-        date: new Date().toISOString().slice(0, 10),
-        paidBy: winner.id,
-        participantIds: payers.map(p => p.id),
-      });
+    for (const award of usable) {
+      for (const winner of award.winners) {
+        await callAction('addExpense', {
+          description: award.winners.length > 1
+            ? `🏆 ${award.gameLabel} champion prize (tied)`
+            : `🏆 ${award.gameLabel} champion prize`,
+          amount: award.share,
+          date: new Date().toISOString().slice(0, 10),
+          paidBy: winner.id,
+          participantIds: award.payers.map(p => p.id),
+        });
+      }
     }
     await refreshData();
     renderBalancesAndSettleUp();
-    showSuccess(`🏆 Prize awarded to ${names}!`);
+    showSuccess('🏆 Prizes awarded!');
   } catch (e) {
     alert(e.message);
   }
 }
 
-document.getElementById('award-prize-btn').addEventListener('click', awardArcadePrize);
+document.getElementById('award-prize-btn').addEventListener('click', awardArcadePrizes);
 
 // ---------- Activity log ----------
 
