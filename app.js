@@ -717,17 +717,19 @@ document.getElementById('guitar-game-overlay').addEventListener('click', (e) => 
 // ---------- Reaction easter egg mini-game ("Quick Draw") ----------
 // Wait for the button to turn green, then click as fast as possible. Click
 // while it's still red (waiting) and that's a jumped-the-gun miss. Faster
-// clicks on green score more. Same 15s-timer/leaderboard shape as the guitar
-// game, but a completely different mechanic — timing/reflexes, not spatial.
+// clicks on green score more. Everyone gets the exact same number of rounds
+// (not a fixed time window) so scores are directly comparable — a time
+// window would let random luck (short vs. long waits) decide how many
+// chances someone even gets.
 
-const REACTION_DURATION_SECONDS = 15;
+const REACTION_ROUND_COUNT = 6;
 const REACTION_MIN_DELAY_MS = 1000;
 const REACTION_MAX_DELAY_MS = 3500;
 const REACTION_EARLY_PENALTY = 6;
 const REACTION_POINT_STEP_MS = 100; // one point per 100ms faster than the cap
 const REACTION_POINT_CAP_MS = 1000; // reactions at/above this score 0
 
-let reactionState = null; // { score, timeLeft, phase, readyAt, roundTimeout, tickTimer }
+let reactionState = null; // { score, roundsPlayed, phase, readyAt, roundTimeout }
 
 function startReactionRound() {
   if (!reactionState) return;
@@ -763,8 +765,15 @@ function onReactionBtnClick() {
     feedbackEl.textContent = `${Math.round(elapsed)}ms — +${points}`;
   }
 
+  reactionState.roundsPlayed++;
   document.getElementById('reaction-score').textContent = String(reactionState.score);
-  startReactionRound();
+  document.getElementById('reaction-round').textContent = `${reactionState.roundsPlayed}/${REACTION_ROUND_COUNT}`;
+
+  if (reactionState.roundsPlayed >= REACTION_ROUND_COUNT) {
+    endReactionGame();
+  } else {
+    startReactionRound();
+  }
 }
 
 function startReactionGame() {
@@ -776,22 +785,16 @@ function startReactionGame() {
   document.getElementById('reaction-feedback').classList.remove('hidden');
   document.getElementById('reaction-btn').classList.remove('hidden');
 
-  reactionState = { score: 0, timeLeft: REACTION_DURATION_SECONDS, phase: null, readyAt: 0, roundTimeout: null, tickTimer: null };
+  reactionState = { score: 0, roundsPlayed: 0, phase: null, readyAt: 0, roundTimeout: null };
   document.getElementById('reaction-score').textContent = '0';
-  document.getElementById('reaction-time').textContent = String(REACTION_DURATION_SECONDS);
+  document.getElementById('reaction-round').textContent = `0/${REACTION_ROUND_COUNT}`;
   document.getElementById('reaction-feedback').textContent = '';
 
   startReactionRound();
-  reactionState.tickTimer = setInterval(() => {
-    reactionState.timeLeft--;
-    document.getElementById('reaction-time').textContent = String(reactionState.timeLeft);
-    if (reactionState.timeLeft <= 0) endReactionGame();
-  }, 1000);
 }
 
 async function endReactionGame() {
   if (!reactionState) return;
-  clearInterval(reactionState.tickTimer);
   clearTimeout(reactionState.roundTimeout);
   const score = reactionState.score;
   reactionState = null;
@@ -801,7 +804,7 @@ async function endReactionGame() {
   document.getElementById('reaction-feedback').classList.add('hidden');
 
   const resultEl = document.getElementById('reaction-result');
-  resultEl.textContent = `⚡ Final score: ${score}! ${score >= 20 ? 'Fastest hands on the trip.' : 'Reflexes could use a fika break.'}`;
+  resultEl.textContent = `⚡ Final score: ${score}! ${score >= 36 ? 'Fastest hands on the trip.' : 'Reflexes could use a fika break.'}`;
   resultEl.classList.remove('hidden');
 
   const startBtn = document.getElementById('reaction-start-btn');
@@ -822,7 +825,6 @@ async function endReactionGame() {
 
 function resetReactionGameView() {
   if (reactionState) {
-    clearInterval(reactionState.tickTimer);
     clearTimeout(reactionState.roundTimeout);
     reactionState = null;
   }
