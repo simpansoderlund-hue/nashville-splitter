@@ -723,7 +723,7 @@ document.getElementById('guitar-game-overlay').addEventListener('click', (e) => 
 const REACTION_DURATION_SECONDS = 15;
 const REACTION_MIN_DELAY_MS = 1000;
 const REACTION_MAX_DELAY_MS = 3500;
-const REACTION_EARLY_PENALTY = 1;
+const REACTION_EARLY_PENALTY = 6;
 const REACTION_POINT_STEP_MS = 100; // one point per 100ms faster than the cap
 const REACTION_POINT_CAP_MS = 1000; // reactions at/above this score 0
 
