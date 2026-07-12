@@ -651,7 +651,14 @@ function renderGameLeaderboard() {
     container.innerHTML = '';
     return;
   }
-  const top5 = state.gameScores.slice().sort((a, b) => b.score - a.score).slice(0, 5);
+  // Keep only each person's best score, so one person can't occupy every spot.
+  const bestByPerson = new Map();
+  for (const s of state.gameScores) {
+    const key = s.name.toLowerCase();
+    const existing = bestByPerson.get(key);
+    if (!existing || s.score > existing.score) bestByPerson.set(key, s);
+  }
+  const top5 = Array.from(bestByPerson.values()).sort((a, b) => b.score - a.score).slice(0, 5);
   container.innerHTML = `
     <p class="hint" style="margin-bottom: 6px">🏆 Top 5 scores</p>
     ${top5.map(s => `
