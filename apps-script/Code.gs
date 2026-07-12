@@ -7,7 +7,7 @@
 // cell if you add one yourself). That keeps the script simple and means the
 // spreadsheet itself is always the ground truth, editable directly.
 
-const SHARED_KEY = 'change-me-to-a-random-string'; // must match SHARED_KEY in app.js
+const SHARED_KEY = 'nashville-yeehaw'; // must match SHARED_KEY in app.js
 
 const SHEETS = {
   people: { name: 'People', headers: ['id', 'name', 'addedAt'] },
