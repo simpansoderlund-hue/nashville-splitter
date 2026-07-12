@@ -860,6 +860,84 @@ document.getElementById('reaction-game-overlay').addEventListener('click', (e) =
   if (e.target === e.currentTarget) closeReactionGame();
 });
 
+// ---------- Mini-game champion prize ----------
+// A fun $2 bounty added to the REAL expense ledger for whoever holds the best
+// score across either mini-game (Guitar or Quick Draw) at the moment this is
+// clicked — there's no "end of trip" date in this app, so it's a manual
+// button rather than something that fires automatically. Ties split the $2
+// evenly among the tied winners, funded by everyone else. This reuses the
+// existing addExpense action (paidBy = winner, participants = everyone but
+// the winner(s)), so no new backend endpoint is needed — same trick settle()
+// uses, just with more than one participant.
+
+const PRIZE_AMOUNT = 2;
+
+function computeArcadeChampions() {
+  const combined = [...state.gameScores, ...state.reactionScores];
+  if (!combined.length) return null;
+  const ranked = topScoresByPerson(combined, Infinity);
+  const topScore = ranked[0].score;
+  return { champions: ranked.filter(s => s.score === topScore), topScore };
+}
+
+async function awardArcadePrize() {
+  try {
+    await refreshData();
+  } catch (e) {
+    alert(`Couldn't load the latest scores: ${e.message}`);
+    return;
+  }
+
+  const result = computeArcadeChampions();
+  if (!result) {
+    alert('No mini-game scores yet — play a round first.');
+    return;
+  }
+
+  const winners = result.champions
+    .map(c => state.people.find(p => p.name.toLowerCase() === c.name.toLowerCase()))
+    .filter(Boolean);
+  if (!winners.length) {
+    alert("Top scorer isn't in the People list anymore — nothing to award.");
+    return;
+  }
+
+  const winnerIds = new Set(winners.map(w => w.id));
+  const payers = state.people.filter(p => !winnerIds.has(p.id));
+  if (payers.length === 0) {
+    alert("Everyone's tied for first — no one left to fund the prize.");
+    return;
+  }
+
+  const share = Math.round((PRIZE_AMOUNT / winners.length) * 100) / 100;
+  const names = winners.map(w => w.name).join(' & ');
+  const message = winners.length > 1
+    ? `Split $${PRIZE_AMOUNT.toFixed(2)} between ${names} ($${share.toFixed(2)} each) for the top mini-game score (tied), funded by everyone else?`
+    : `Give ${names} $${share.toFixed(2)} for the top mini-game score, funded by everyone else?`;
+
+  const ok = await confirmDialog(message, { okLabel: 'Award it', okClass: 'btn-confirm' });
+  if (!ok) return;
+
+  try {
+    for (const winner of winners) {
+      await callAction('addExpense', {
+        description: winners.length > 1 ? '🏆 Mini-game champion prize (tied)' : '🏆 Mini-game champion prize',
+        amount: share,
+        date: new Date().toISOString().slice(0, 10),
+        paidBy: winner.id,
+        participantIds: payers.map(p => p.id),
+      });
+    }
+    await refreshData();
+    renderBalancesAndSettleUp();
+    showSuccess(`🏆 Prize awarded to ${names}!`);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+document.getElementById('award-prize-btn').addEventListener('click', awardArcadePrize);
+
 // ---------- Activity log ----------
 
 document.getElementById('log-badge').addEventListener('click', openActivityLog);
