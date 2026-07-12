@@ -138,6 +138,9 @@
       </form>
       <p id="person-error" class="error"></p>
       <div id="people-list"></div>
+      <button type="button" id="reaction-game-badge" class="log-badge" style="margin-top: 16px">
+        <span>⚡ Quick Draw</span>
+      </button>
     </section>
 
     <section id="tab-balances" class="tab-panel">
@@ -210,6 +213,29 @@
       <p class="hint hidden" id="game-result"></p>
       <div id="game-leaderboard"></div>
       <button type="button" id="game-start-btn" class="primary">Start</button>
+    </div>
+  </div>
+
+  <div id="reaction-game-overlay" class="modal-overlay hidden">
+    <div class="modal-card game-card">
+      <div class="log-card-header">
+        <h2>⚡ Quick Draw</h2>
+        <button type="button" id="reaction-close" class="btn-secondary">Close</button>
+      </div>
+      <p class="hint" id="reaction-intro">
+        Wait for the button to turn green, then click it as fast as you can —
+        faster clicks score more. Click too early and it's -1. 15 seconds,
+        as many rounds as you can get.
+      </p>
+      <div class="game-hud hidden" id="reaction-hud">
+        <span>Score: <strong id="reaction-score">0</strong></span>
+        <span>Time: <strong id="reaction-time">15</strong>s</span>
+      </div>
+      <button type="button" id="reaction-btn" class="reaction-btn hidden">Get ready…</button>
+      <p class="hint hidden" id="reaction-feedback"></p>
+      <p class="hint hidden" id="reaction-result"></p>
+      <div id="reaction-leaderboard"></div>
+      <button type="button" id="reaction-start-btn" class="primary">Start</button>
     </div>
   </div>
 

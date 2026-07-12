@@ -12,6 +12,7 @@ const state = {
   expenses: [],
   log: [],
   gameScores: [],
+  reactionScores: [],
 };
 
 let currentUserName = null;
@@ -33,6 +34,7 @@ async function refreshData() {
   state.expenses = data.expenses.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   state.log = data.log || [];
   state.gameScores = data.gameScores || [];
+  state.reactionScores = data.reactionScores || [];
   return data;
 }
 
@@ -641,24 +643,29 @@ async function endGuitarGame() {
       console.error(e);
     }
   }
-  renderGameLeaderboard();
+  renderLeaderboard('game-leaderboard', state.gameScores);
   document.getElementById('game-leaderboard').classList.remove('hidden');
 }
 
-function renderGameLeaderboard() {
-  const container = document.getElementById('game-leaderboard');
-  if (!state.gameScores.length) {
-    container.innerHTML = '';
-    return;
-  }
-  // Keep only each person's best score, so one person can't occupy every spot.
+// Shared by every mini-game's leaderboard: keep only each person's best
+// score (so one person can't occupy every spot), then take the top N.
+function topScoresByPerson(scores, limit = 5) {
   const bestByPerson = new Map();
-  for (const s of state.gameScores) {
+  for (const s of scores) {
     const key = s.name.toLowerCase();
     const existing = bestByPerson.get(key);
     if (!existing || s.score > existing.score) bestByPerson.set(key, s);
   }
-  const top5 = Array.from(bestByPerson.values()).sort((a, b) => b.score - a.score).slice(0, 5);
+  return Array.from(bestByPerson.values()).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function renderLeaderboard(containerId, scores) {
+  const container = document.getElementById(containerId);
+  if (!scores.length) {
+    container.innerHTML = '';
+    return;
+  }
+  const top5 = topScoresByPerson(scores);
   container.innerHTML = `
     <p class="hint" style="margin-bottom: 6px">🏆 Top 5 scores</p>
     ${top5.map(s => `
@@ -698,13 +705,155 @@ document.getElementById('guitar-badge').addEventListener('click', async () => {
   } catch (e) {
     console.error(e);
   }
-  renderGameLeaderboard();
+  renderLeaderboard('game-leaderboard', state.gameScores);
 });
 document.getElementById('game-grid').addEventListener('click', onGameGridClick);
 document.getElementById('game-start-btn').addEventListener('click', startGuitarGame);
 document.getElementById('game-close').addEventListener('click', closeGuitarGame);
 document.getElementById('guitar-game-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeGuitarGame();
+});
+
+// ---------- Reaction easter egg mini-game ("Quick Draw") ----------
+// Wait for the button to turn green, then click as fast as possible. Click
+// while it's still red (waiting) and that's a jumped-the-gun miss. Faster
+// clicks on green score more. Same 15s-timer/leaderboard shape as the guitar
+// game, but a completely different mechanic — timing/reflexes, not spatial.
+
+const REACTION_DURATION_SECONDS = 15;
+const REACTION_MIN_DELAY_MS = 1000;
+const REACTION_MAX_DELAY_MS = 3500;
+const REACTION_EARLY_PENALTY = 1;
+
+let reactionState = null; // { score, timeLeft, phase, readyAt, roundTimeout, tickTimer }
+
+function startReactionRound() {
+  if (!reactionState) return;
+  const btn = document.getElementById('reaction-btn');
+  reactionState.phase = 'waiting';
+  btn.textContent = 'Wait…';
+  btn.classList.remove('ready');
+  btn.classList.add('waiting');
+
+  const delay = REACTION_MIN_DELAY_MS + Math.random() * (REACTION_MAX_DELAY_MS - REACTION_MIN_DELAY_MS);
+  reactionState.roundTimeout = setTimeout(() => {
+    if (!reactionState) return;
+    reactionState.phase = 'ready';
+    reactionState.readyAt = performance.now();
+    btn.textContent = 'Click now!';
+    btn.classList.remove('waiting');
+    btn.classList.add('ready');
+  }, delay);
+}
+
+function onReactionBtnClick() {
+  if (!reactionState) return;
+  const feedbackEl = document.getElementById('reaction-feedback');
+
+  if (reactionState.phase === 'waiting') {
+    clearTimeout(reactionState.roundTimeout);
+    reactionState.score -= REACTION_EARLY_PENALTY;
+    feedbackEl.textContent = `Too soon! -${REACTION_EARLY_PENALTY}`;
+  } else {
+    const elapsed = performance.now() - reactionState.readyAt;
+    const points = elapsed < 300 ? 3 : elapsed < 600 ? 2 : elapsed < 1000 ? 1 : 0;
+    reactionState.score += points;
+    feedbackEl.textContent = `${Math.round(elapsed)}ms — +${points}`;
+  }
+
+  document.getElementById('reaction-score').textContent = String(reactionState.score);
+  startReactionRound();
+}
+
+function startReactionGame() {
+  document.getElementById('reaction-intro').classList.add('hidden');
+  document.getElementById('reaction-result').classList.add('hidden');
+  document.getElementById('reaction-start-btn').classList.add('hidden');
+  document.getElementById('reaction-leaderboard').classList.add('hidden');
+  document.getElementById('reaction-hud').classList.remove('hidden');
+  document.getElementById('reaction-feedback').classList.remove('hidden');
+  document.getElementById('reaction-btn').classList.remove('hidden');
+
+  reactionState = { score: 0, timeLeft: REACTION_DURATION_SECONDS, phase: null, readyAt: 0, roundTimeout: null, tickTimer: null };
+  document.getElementById('reaction-score').textContent = '0';
+  document.getElementById('reaction-time').textContent = String(REACTION_DURATION_SECONDS);
+  document.getElementById('reaction-feedback').textContent = '';
+
+  startReactionRound();
+  reactionState.tickTimer = setInterval(() => {
+    reactionState.timeLeft--;
+    document.getElementById('reaction-time').textContent = String(reactionState.timeLeft);
+    if (reactionState.timeLeft <= 0) endReactionGame();
+  }, 1000);
+}
+
+async function endReactionGame() {
+  if (!reactionState) return;
+  clearInterval(reactionState.tickTimer);
+  clearTimeout(reactionState.roundTimeout);
+  const score = reactionState.score;
+  reactionState = null;
+
+  document.getElementById('reaction-btn').classList.add('hidden');
+  document.getElementById('reaction-hud').classList.add('hidden');
+  document.getElementById('reaction-feedback').classList.add('hidden');
+
+  const resultEl = document.getElementById('reaction-result');
+  resultEl.textContent = `⚡ Final score: ${score}! ${score >= 20 ? 'Fastest hands on the trip.' : 'Reflexes could use a fika break.'}`;
+  resultEl.classList.remove('hidden');
+
+  const startBtn = document.getElementById('reaction-start-btn');
+  startBtn.textContent = 'Play again';
+  startBtn.classList.remove('hidden');
+
+  if (currentUserName) {
+    try {
+      await callAction('addReactionScore', { name: currentUserName, score });
+      await refreshData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  renderLeaderboard('reaction-leaderboard', state.reactionScores);
+  document.getElementById('reaction-leaderboard').classList.remove('hidden');
+}
+
+function resetReactionGameView() {
+  if (reactionState) {
+    clearInterval(reactionState.tickTimer);
+    clearTimeout(reactionState.roundTimeout);
+    reactionState = null;
+  }
+  document.getElementById('reaction-intro').classList.remove('hidden');
+  document.getElementById('reaction-result').classList.add('hidden');
+  document.getElementById('reaction-hud').classList.add('hidden');
+  document.getElementById('reaction-btn').classList.add('hidden');
+  document.getElementById('reaction-feedback').classList.add('hidden');
+  document.getElementById('reaction-leaderboard').classList.remove('hidden');
+  const startBtn = document.getElementById('reaction-start-btn');
+  startBtn.textContent = 'Start';
+  startBtn.classList.remove('hidden');
+}
+
+function closeReactionGame() {
+  resetReactionGameView();
+  document.getElementById('reaction-game-overlay').classList.add('hidden');
+}
+
+document.getElementById('reaction-game-badge').addEventListener('click', async () => {
+  document.getElementById('reaction-game-overlay').classList.remove('hidden');
+  try {
+    await refreshData();
+  } catch (e) {
+    console.error(e);
+  }
+  renderLeaderboard('reaction-leaderboard', state.reactionScores);
+});
+document.getElementById('reaction-btn').addEventListener('click', onReactionBtnClick);
+document.getElementById('reaction-start-btn').addEventListener('click', startReactionGame);
+document.getElementById('reaction-close').addEventListener('click', closeReactionGame);
+document.getElementById('reaction-game-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeReactionGame();
 });
 
 // ---------- Activity log ----------

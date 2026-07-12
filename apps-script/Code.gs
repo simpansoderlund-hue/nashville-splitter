@@ -14,6 +14,7 @@ const SHEETS = {
   expenses: { name: 'Expenses', headers: ['id', 'description', 'amount', 'paidBy', 'date', 'participantIds', 'createdAt', 'isSettlement'] },
   log: { name: 'Log', headers: ['timestamp', 'message'] },
   gameScores: { name: 'GameScores', headers: ['name', 'score', 'playedAt'] },
+  reactionScores: { name: 'ReactionScores', headers: ['name', 'score', 'playedAt'] },
 };
 
 function getSheet(key) {
@@ -70,8 +71,9 @@ function readLog() {
     .slice(0, 200);
 }
 
-function readGameScores() {
-  const rows = getSheet('gameScores').getDataRange().getValues();
+// Shared shape (name, score, playedAt) for every mini-game's score sheet.
+function readScores(sheetKey) {
+  const rows = getSheet(sheetKey).getDataRange().getValues();
   return rows.slice(1)
     .filter(r => r[0])
     .map(r => ({ name: r[0], score: Number(r[1]), playedAt: normDate(r[2]) }))
@@ -90,7 +92,8 @@ function doGet(e) {
     people: readPeople(),
     expenses: readExpenses(),
     log: readLog(),
-    gameScores: readGameScores(),
+    gameScores: readScores('gameScores'),
+    reactionScores: readScores('reactionScores'),
   });
 }
 
@@ -112,7 +115,8 @@ function doPost(e) {
       case 'addPerson': return addPerson(data);
       case 'addExpense': return addExpense(data);
       case 'settle': return settle(data);
-      case 'addGameScore': return addGameScore(data);
+      case 'addGameScore': return addScore('gameScores', 'the guitar mini-game', data);
+      case 'addReactionScore': return addScore('reactionScores', 'the reaction mini-game', data);
       default: return jsonResponse({ error: 'Unknown action' });
     }
   } finally {
@@ -194,14 +198,16 @@ function settle(data) {
   return jsonResponse({ id, description, amount: roundedAmount, paidBy: fromId, date, participantIds: [toId], createdAt, isSettlement: true });
 }
 
-function addGameScore(data) {
+// Shared write path for any mini-game's score sheet — sheetKey picks the tab,
+// gameLabel is just for the activity log message.
+function addScore(sheetKey, gameLabel, data) {
   const name = (data.name || '').trim();
   const score = Number(data.score);
   if (!name) return jsonResponse({ error: 'Name is required' });
   if (!Number.isFinite(score)) return jsonResponse({ error: 'Score must be a number' });
 
   const playedAt = new Date().toISOString();
-  getSheet('gameScores').appendRow([name, score, playedAt]);
-  log(`GAME_SCORE "${name}" scored ${score} in the guitar mini-game`);
+  getSheet(sheetKey).appendRow([name, score, playedAt]);
+  log(`GAME_SCORE "${name}" scored ${score} in ${gameLabel}`);
   return jsonResponse({ name, score, playedAt });
 }

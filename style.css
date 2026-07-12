@@ -518,10 +518,41 @@ button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
   border-color: var(--bad);
 }
 
-#game-leaderboard {
+/* Shared by every mini-game's leaderboard container */
+#game-leaderboard,
+#reaction-leaderboard {
   margin-bottom: 12px;
 }
 
-#game-leaderboard .balance-row {
+#game-leaderboard .balance-row,
+#reaction-leaderboard .balance-row {
   padding: 8px 12px;
+}
+
+/* ---------- Quick Draw reaction mini-game ---------- */
+
+.reaction-btn {
+  display: block;
+  width: 100%;
+  padding: 40px 16px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.reaction-btn.waiting {
+  background: linear-gradient(160deg, rgba(224, 117, 92, 0.35), rgba(224, 117, 92, 0.1));
+  border-color: var(--bad);
+}
+
+.reaction-btn.ready {
+  background: linear-gradient(160deg, rgba(76, 175, 125, 0.4), rgba(76, 175, 125, 0.12));
+  border-color: var(--good);
 }
